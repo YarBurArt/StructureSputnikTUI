@@ -2,7 +2,10 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Drawing;
 using System.Threading.Tasks;
+using ShellProgressBar;
+
 
 interface IDirectoryExplorer
 {
@@ -47,9 +50,7 @@ class DirectoryExplorer : IDirectoryExplorer
             node.Files = files.Select(f => new FileInfo(f)).ToList();
         }
         catch (UnauthorizedAccessException)
-        {
-            // Handle access denied
-        }
+        { }
         return node;
     }
 }
@@ -60,22 +61,14 @@ class DirectoryNode
     public List<DirectoryNode> Children { get; set; }
     public List<FileInfo> Files { get; set; }
 
-    public DirectoryNode(string path)
-    {
-        Path = path;
-    }
+    public DirectoryNode(string path) => Path = path;
     public IEnumerable<DirectoryNode> Flatten()
     {
         yield return this;
-        foreach (var child in Children)
-        {
+        foreach (var child in Children)   
             foreach (var flattenedChild in child.Flatten())
-            {
                 yield return flattenedChild;
-            }
-        }
     }
-
 }
 
 class DirectoryTreeBuilder
@@ -98,29 +91,81 @@ class Program
 {
     static async Task Main()
     {
-        Console.WriteLine("Enter starting directory:");
+        Console.Write("Enter starting directory: ");
         var rootPath = Console.ReadLine();
 
         var builder = new DirectoryTreeBuilder(new DirectoryExplorer());
-        var tree = await builder.BuildTreeAsync(rootPath);
+        var treeTask = builder.BuildTreeAsync(rootPath: rootPath);
 
-        var flatList = tree.Flatten().OrderByDescending(n => n.Files.Sum(f => f.Length));
-
-        foreach (var node in flatList)
+        int totalTicks = GetLevelValue(rootPath);
+        var options = new ProgressBarOptions { ProgressCharacter = '#', ProgressBarOnBottom = true };
+        var progressTask = Task.Run(() =>
         {
-            if (node.Files.Any())
+            using (var pbar = new ProgressBar(totalTicks, "progress bar to explore dir", options))
             {
-                Console.WriteLine($"{node.Path} (Directory):");
-                foreach (var file in node.Files)
+                for (int i = 0; i < totalTicks; i++)
                 {
-                    Console.WriteLine($"\t- {file.Name} ({file.Length} bytes)");
+                    pbar.Tick();
+                    Task.Delay(50).Wait(); // Adjust delay as needed
                 }
             }
-            else
+        });
+
+        await Task.WhenAll(treeTask, progressTask);
+
+        var tree = await treeTask;
+        Console.SetCursorPosition(0, 0);
+        Console.Clear();
+        var flatList = tree.Flatten().OrderByDescending(n => n.Files.Sum(f => f.Length));
+        PrintFromFlatlist(flatList);
+    }
+    static int GetLevelValue(string path)
+    {// from 100000 to 10 for progress speed by dir level
+        string[] directories = path.Split(Path.DirectorySeparatorChar);
+        int levels = directories.Length - 1; 
+        levels = Math.Min(levels, 5); 
+        double baseValue = 100000; 
+        double result = baseValue / Math.Pow(10, levels);
+
+        return (int)Math.Round(result);
+    }
+
+    static void PrintFromFlatlist (IOrderedEnumerable<DirectoryNode> flatlist) 
+    {
+        foreach (var node in flatlist)
+        {
+            Console.ForegroundColor = ConsoleColor.DarkCyan;
+            Console.Write("┌─ ");
+            Console.ResetColor();
+            Console.WriteLine(node.Path);
+
+            if (node.Files.Any())
             {
-                Console.WriteLine($"{node.Path} (Empty Directory)");
+                foreach (var file in node.Files)
+                {
+                    var sizeString = GetReadableFileSizeString(file.Length);
+                    Console.ForegroundColor = ConsoleColor.Gray;
+                    Console.Write("│  ├─ ");
+                    Console.ResetColor();
+                    Console.WriteLine($"{file.Name} ({sizeString})");
+                }
             }
+            Console.ForegroundColor = ConsoleColor.DarkCyan;
+            Console.WriteLine("└───────────────────────────");
+            Console.ResetColor();
+        }
+    }
+    static string GetReadableFileSizeString(long size)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        double len = size;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len /= 1024;
         }
 
+        return $"{Math.Round(len, 1)} {sizes[order]}";
     }
 }
