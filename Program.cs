@@ -1,5 +1,4 @@
 ﻿using ShellProgressBar;
-using static Terminal.Gui.Graphs.BarSeries;
 
 // Program for easy visualization and analysis of the file system structure
 
@@ -80,36 +79,9 @@ class DirectoryTreeBuilder {
     }
 }
 
-class Program {
-    static async Task Main() {
-        // Prompting the user => Building a hierarchical representation & Displaying a progress bar
-        // Flattening the directory tree and printing the files sorted by descending size
-        Console.Write("Enter starting directory: ");
-        var rootPath = Console.ReadLine();
-
-        var builder = new DirectoryTreeBuilder(new DirectoryExplorer());
-        var treeTask = builder.BuildTreeAsync(rootPath: rootPath);
-        // the total number of ticks for the progress bar based on path
-        int totalTicks = GetLevelValue(rootPath);
-        var options = new ProgressBarOptions { ProgressCharacter = '#', ProgressBarOnBottom = true };
-        var progressTask = Task.Run(() => {
-            using (var pbar = new ProgressBar(totalTicks, "progress bar to explore dir", options)) {
-                for (int i = 0; i < totalTicks; i++) {
-                    pbar.Tick(); // delay to make the progress bar animation smoother
-                    Task.Delay(50).Wait(); // Adjust delay as needed
-                }
-            }
-        });
-        // for both the directory tree building and the progress bar tasks to complete
-        await Task.WhenAll(treeTask, progressTask);
-
-        var tree = await treeTask;
-        Console.SetCursorPosition(0, 0);
-        Console.Clear();
-        var flatList = tree.Flatten().OrderByDescending(n => n.Files.Sum(f => f.Length)); // sort higher to lower
-        PrintFromFlatlist(flatList);
-    }
-    static int GetLevelValue(string path) {
+public class OutputFormatterDir {
+    // formats console output for readability, add color, | symbols, byte to KB/MB/GB
+    public static int GetLevelValueStProgress(string path) {
         // from 1000000 to 10 for progress speed by dir level
         string[] directories = path.Split(Path.DirectorySeparatorChar);
         int levels = directories.Length - 1;
@@ -120,7 +92,8 @@ class Program {
         return (int)Math.Round(result);
     }
 
-    static void PrintFromFlatlist(IOrderedEnumerable<DirectoryNode> flatlist) {
+    internal static void PrintFromFlatlist(IOrderedEnumerable<DirectoryNode> flatlist) {
+        // correctly outputs a ready sorted data structure with folders and files
         foreach (var node in flatlist) {
             Console.ForegroundColor = ConsoleColor.DarkCyan;
             Console.Write("┌─ ");
@@ -141,7 +114,7 @@ class Program {
             Console.ResetColor();
         }
     }
-    static string GetReadableFileSizeString(long size) {
+    private static string GetReadableFileSizeString(long size) {
         string[] sizes = { "B", "KB", "MB", "GB", "TB" };
         double len = size;
         int order = 0;
@@ -151,5 +124,38 @@ class Program {
         }
 
         return $"{Math.Round(len, 1)} {sizes[order]}";
+    }
+}
+
+class Program {
+    static async Task Main() {
+        // Prompting the user => Building a hierarchical representation & Displaying a progress bar
+        // Flattening the directory tree and printing the files sorted by descending size
+        Console.Write("Enter starting directory: ");
+        var rootPath = Console.ReadLine() ?? Environment.GetEnvironmentVariable("HOME");
+
+        var builder = new DirectoryTreeBuilder(new DirectoryExplorer());
+        var treeTask = builder.BuildTreeAsync(rootPath);
+        
+        // the total number of ticks for the progress bar based on path
+        int totalTicks = OutputFormatterDir.GetLevelValueStProgress(rootPath);
+        var options = new ProgressBarOptions { ProgressCharacter = '#', ProgressBarOnBottom = true };
+        var progressTask = Task.Run(() => {
+            using (var pbar = new ProgressBar(totalTicks, "progress bar to explore dir", options)) {
+                for (int i = 0; i < totalTicks; i++) {
+                    pbar.Tick(); // delay to make the progress bar animation smoother
+                    Task.Delay(50).Wait(); // Adjust delay as needed
+                }
+            }
+        });
+        // for both the directory tree building and the progress bar tasks to complete
+        await Task.WhenAll(treeTask, progressTask);
+        var tree = treeTask.Result;
+
+        Console.SetCursorPosition(0, 0); // crutch for cleaning up the progress bar bugs
+        Console.Clear();
+        // sort higher to lower size
+        var flatList = tree.Flatten().OrderByDescending(n => n.Files.Sum(f => f.Length)); 
+        OutputFormatterDir.PrintFromFlatlist(flatList);
     }
 }
