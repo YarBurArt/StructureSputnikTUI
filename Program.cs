@@ -3,41 +3,55 @@
 // Program for easy visualization and analysis of the file system structure
 
 interface IDirectoryExplorer {
-    DirectoryNode Explore(string path);
+    Task<DirectoryNode> Explore(string path);
 }
 
 public class CustomSearcher {
-    // from https://stackoverflow.com/questions/7296956/how-to-list-all-subdirectories-in-a-directory
-    public static List<string> GetDirectories(string path, string searchPattern = "*",
-        SearchOption searchOption = SearchOption.AllDirectories) {
-        if (searchOption == SearchOption.TopDirectoryOnly)
-            return Directory.GetDirectories(path, searchPattern).ToList();
-        var directories = new List<string>(GetDirectories(path, searchPattern));
-        for (var i = 0; i < directories.Count; i++)
-            directories.AddRange(GetDirectories(directories[i], searchPattern));
+    public static List<string> GetDirectories(string path, string searchPattern = "*", SearchOption searchOption = SearchOption.AllDirectories) {
+        // track visited directories to avoid duplicates in rec
+        var exploredDirectories = new Dictionary<string, bool>();
+        var directories = new List<string>();
+
+        if (searchOption == SearchOption.TopDirectoryOnly) 
+            return Directory.GetDirectories(path, searchPattern).ToList();      
+
+        var queue = new Queue<string>();
+        queue.Enqueue(path);
+
+        while (queue.Count > 0) { // breadth-first search through the directory tree
+            var currentPath = queue.Dequeue();
+
+            if (exploredDirectories.ContainsKey(currentPath)) continue;
+
+            try { // get subdirectories and add full paths
+                var directoryInfo = new DirectoryInfo(currentPath);
+                var subdirectories = directoryInfo.GetDirectories(searchPattern);
+                directories.AddRange(subdirectories.Select(d => d.FullName));
+
+                foreach (var subdirectory in subdirectories)
+                    queue.Enqueue(subdirectory.FullName);
+            }
+            catch (UnauthorizedAccessException) {
+                directories.Add(currentPath);
+            }
+        }
+
         return directories;
-    }
-    private static List<string> GetDirectories(string path, string searchPattern) {
-        try {
-            return Directory.GetDirectories(path, searchPattern).ToList(); 
-        }
-        catch (UnauthorizedAccessException) {
-            return new List<string>();
-        }
     }
 }
 
 class DirectoryExplorer : IDirectoryExplorer {
     // Explores the directory at the specified path and returns a DirectoryNode representing the directory structure
-    public DirectoryNode Explore(string path) {
-        // Create a new DirectoryNode for the specified path
+    public async Task<DirectoryNode> Explore(string path) {
         var node = new DirectoryNode(path);
-        try {
-            // Recursively explore the subdirectories and add them as children of the current node
-            var directories = CustomSearcher.GetDirectories(path);
-            var files = Directory.GetFiles(path);
-            node.Children = directories.Select(d => Explore(d)).ToList();
-            node.Files = files.Select(f => new FileInfo(f)).ToList();
+        try { // parallel exploration with error handling
+            var subdirectoryTasks = CustomSearcher.GetDirectories(path)
+                .Select(dir => Task.Run(() => Explore(dir)));
+
+            var subdirectories = await Task.WhenAll(subdirectoryTasks);
+            node.Children = subdirectories.ToList();
+
+            node.Files = Directory.GetFiles(path).Select(f => new FileInfo(f)).ToList();
         }
         catch (UnauthorizedAccessException) { }
 
@@ -52,9 +66,8 @@ class DirectoryNode {
     public List<FileInfo> Files { get; set; }
 
     public DirectoryNode(string path) => Path = path;
-
     // Flattens the directory structure by returning a sequence of all DirectoryNode instances
-    // in a depth-first traversal of the directory tree
+    // in a depth-first traversal of the directory tree return
     public IEnumerable<DirectoryNode> Flatten() {
         yield return this;
         foreach (var child in Children)
@@ -74,7 +87,6 @@ class DirectoryTreeBuilder {
     }
 
     public async Task<DirectoryNode> BuildTreeAsync(string rootPath) {
-        // Async implementation using Task.Run and Parallel.ForEach
         return await Task.Run(() => _explorer.Explore(rootPath));
     }
 }

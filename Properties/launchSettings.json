@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "StructureSputnikTUI": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}
