@@ -11,10 +11,10 @@ Console application to see what disk space is occupied, displays destination fol
 When executing a `static async Task Main()` in C# CLR (Common Language Runtime), it creates an asynchronous task (`Task`), which is a unit of asynchronous execution for the execution machine. Within this task, various asynchronous operations are executed and dispatched to available threads so as not to block the main thread of the application. When await is encountered, execution of the current task is suspended until the expected asynchronous operation is completed, at which point execution resumes and control is eventually returned from `Main()`.
 
 
-## `Console.Write("Enter starting directory: ");`: Outputs a prompt to enter the starting directory /
+### `Console.Write("Enter starting directory: ");`: Outputs a prompt to enter the starting directory /
 Within the Console.Write() method, low-level operating system functions are called that are responsible for writing data to the console buffer, from where it is then output to the screen. This process involves converting the string argument into a sequence of bytes, determining the encoding, and passing the data to the appropriate operating system I/O functions for the console.
 
-## `var rootPath = Console.ReadLine() ?? Environment.GetEnvironmentVariable("HOME");`: Reads the entered directory or uses the default home directory /
+### `var rootPath = Console.ReadLine() ?? Environment.GetEnvironmentVariable("HOME");`: Reads the entered directory or uses the default home directory /
 inside, low-level operating system functions are called to read user input from the console buffer, and if no user input has been made, operating system functions are called to retrieve the value of the "HOME" environment variable, and then return the retrieved value and assign it to the rootPath variable.
 
 ## `var builder = new DirectoryTreeBuilder(new DirectoryExplorer());`: Creates an object to build a hierarchical representation of the directory /
@@ -162,7 +162,7 @@ Sums the sizes of all files (`f.Length`) in this collection.
 Returns the resulting sum as a sort value.
 The runtime machine sorts the sequence of `DirectoryNode` objects in descending order (`.OrderByDescending()`) by the calculated values 
 ## `OutputFormatterDir.PrintFromFlatlist(flatList);`: Outputs a formatted list of files /
-### internal static void PrintFromFlatlist(IOrderedEnumerable<DirectoryNode> flatlist) {...} /
+### `internal static void PrintFromFlatlist(IOrderedEnumerable<DirectoryNode> flatlist) {...}` /
 `foreach (var node in flatlist)`:
 Searches each DirectoryNode object in the sorted flatlist sequence.
 
