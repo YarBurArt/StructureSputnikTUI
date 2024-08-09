@@ -1,4 +1,5 @@
 ﻿using ShellProgressBar;
+using System.Text;
 
 // Program for easy visualization and analysis of the file system structure
 
@@ -28,14 +29,16 @@ public class CustomSearcher {
                 var subdirectories = directoryInfo.GetDirectories(searchPattern);
                 directories.AddRange(subdirectories.Select(d => d.FullName));
 
-                foreach (var subdirectory in subdirectories)
+                foreach (var subdirectory in subdirectories) {
                     queue.Enqueue(subdirectory.FullName);
+                    Console.WriteLine(subdirectory);
+                }
             }
             catch (UnauthorizedAccessException) {
                 directories.Add(currentPath);
             }
         }
-
+        
         return directories;
     }
 }
@@ -113,7 +116,8 @@ public class OutputFormatterDir {
             Console.WriteLine(node.Path);
 
             if (node.Files.Any()) {
-                foreach (var file in node.Files) {
+                var sortedFiles = node.Files.OrderByDescending(f => f.Length);
+                foreach (var file in sortedFiles) {
                     var sizeString = GetReadableFileSizeString(file.Length);
                     Console.ForegroundColor = ConsoleColor.Gray;
                     Console.Write("│  ├─ ");
@@ -126,6 +130,31 @@ public class OutputFormatterDir {
             Console.ResetColor();
         }
     }
+    internal static void PrintDirectoryTree(DirectoryNode node, int level = 0) {
+        // Sort the files in the current directory by size
+        var sortedFiles = node.Files.OrderByDescending(f => f.Length);
+
+        // Print the current directory
+        Console.ForegroundColor = ConsoleColor.Gray;
+        Console.Write(new string(' ', level * 2) + "├─ ");
+        Console.ResetColor();
+        Console.WriteLine(Path.GetFileName(node.Path));
+
+        // Print the files in the current directory
+        foreach (var file in sortedFiles) {
+            var sizeString = GetReadableFileSizeString(file.Length);
+            Console.ForegroundColor = ConsoleColor.Gray;
+            Console.Write(new string(' ', (level + 1) * 2) + "├─ ");
+            Console.ResetColor();
+            Console.WriteLine($"{file.Name} ({sizeString})");
+        }
+
+        // Recursively print the subdirectories
+        foreach (var child in node.Children.OrderByDescending(c => c.Flatten().Count())) {
+            PrintDirectoryTree(child, level + 1);
+        }
+    }
+
     private static string GetReadableFileSizeString(long size) {
         string[] sizes = { "B", "KB", "MB", "GB", "TB" };
         double len = size;
@@ -167,7 +196,9 @@ class Program {
         Console.SetCursorPosition(0, 0); // crutch for cleaning up the progress bar bugs
         Console.Clear();
         // sort higher to lower size
-        var flatList = tree.Flatten().OrderByDescending(n => n.Files.Sum(f => f.Length)); 
-        OutputFormatterDir.PrintFromFlatlist(flatList);
+        var flatList = tree.Flatten().OrderByDescending(n => n.Files.Sum(f => f.Length));
+        // OutputFormatterDir.PrintFromFlatlist(flatList);
+        OutputFormatterDir.PrintDirectoryTree(tree);
+        //OutputFormatterDir.SaveDirectoryTreeToHtml(tree, "out");
     }
 }
