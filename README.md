@@ -184,3 +184,20 @@ Formats a string with the size and unit.
 
 `Console.WriteLine($"{file.Name} ({sizeString})");`:
 Outputs the file name and size to the console. Outputs the delimiter when the files are complete.
+
+# `PrintDirectoryTree` Function
+
+This function prints a directory tree, showing the contents of a directory and its subdirectories.
+
+## Parameters
+
+- `node`: A `DirectoryNode` object representing the current directory.
+- `level`: An optional integer for the current level in the directory tree (default is 0).
+
+## Functionality
+
+1. Sorts the files in the current directory by size in descending order.
+2. Prints the current directory name, formatted with a leading `├─ ` and gray color.
+3. Prints the files in the current directory, showing the file name and size.
+4. Recursively calls itself for each subdirectory, incrementing the `level` to maintain the hierarchy.
+
