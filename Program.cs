@@ -130,6 +130,7 @@ public class OutputFormatterDir {
             Console.ResetColor();
         }
     }
+
     internal static void PrintDirectoryTree(DirectoryNode node, int level = 0) {
         // Sort the files in the current directory by size
         var sortedFiles = node.Files.OrderByDescending(f => f.Length);
@@ -154,7 +155,53 @@ public class OutputFormatterDir {
             PrintDirectoryTree(child, level + 1);
         }
     }
+    internal static void PrintDirectoryTreeWithRectangles(DirectoryNode node, long maxDiskSize) {
+        // FIXME: 
+        const int minWidth = 2;
 
+        void DrawRectangle(long size, string label, ConsoleColor color)
+        {
+            int width = (int)(size * Console.WindowWidth / maxDiskSize);
+            width = Math.Max(width, minWidth);
+
+            if (label.Length > width | label.Length < 0)
+                label = label.Substring(0, width) + "...";
+            
+
+            Console.ForegroundColor = color;
+            Console.Write(new string('█', width));
+
+            // Set cursor position to the beginning of the rectangle
+            Console.SetCursorPosition(Console.CursorLeft, Console.CursorTop);
+            Console.Write(label);
+            Console.ResetColor();
+            Console.WriteLine();
+        }
+        // Get total size of the current directory and its children
+        long totalSize = GetTotalSize(node);
+
+        DrawRectangle(totalSize, Path.GetFileName(node.Path), ConsoleColor.Blue);
+
+        foreach (var file in node.Files.OrderByDescending(f => f.Length))
+            DrawRectangle(file.Length, file.Name, ConsoleColor.Green);
+        foreach (var child in node.Children)
+            PrintDirectoryTreeWithRectangles(child, maxDiskSize);
+
+    }
+
+    internal static long GetTotalSize(DirectoryNode node) {
+        long size = node.Files.Sum(f => f.Length);
+        foreach (var child in node.Children) size += GetTotalSize(child);
+        return size;
+    }
+    public static long DirSize(DirectoryInfo d) {
+        long size = 0; // FIXME:
+        FileInfo[] fis = d.GetFiles(); // Add file sizes.
+        foreach (FileInfo fi in fis) size += fi.Length;
+        DirectoryInfo[] dis = d.GetDirectories(); // Add subdirectory sizes.
+        foreach (DirectoryInfo di in dis) size += DirSize(di);
+        return size;
+    }
     private static string GetReadableFileSizeString(long size) {
         string[] sizes = { "B", "KB", "MB", "GB", "TB" };
         double len = size;
@@ -198,7 +245,11 @@ class Program {
         // sort higher to lower size
         var flatList = tree.Flatten().OrderByDescending(n => n.Files.Sum(f => f.Length));
         // OutputFormatterDir.PrintFromFlatlist(flatList);
-        OutputFormatterDir.PrintDirectoryTree(tree);
+        //OutputFormatterDir.PrintDirectoryTree(tree);
         //OutputFormatterDir.SaveDirectoryTreeToHtml(tree, "out");
+        Console.WindowWidth = Console.LargestWindowWidth;
+        Console.WindowHeight = Console.LargestWindowHeight;
+        OutputFormatterDir.PrintDirectoryTreeWithRectangles(
+            tree, OutputFormatterDir.DirSize(new DirectoryInfo(rootPath)));
     }
 }
